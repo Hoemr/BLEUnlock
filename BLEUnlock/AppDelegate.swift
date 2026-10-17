@@ -1674,13 +1674,41 @@ struct DeviceMenuItemView {
         })
     }
 
-    func cancelWakeRelatedTimers() {
-        systemWakeTimer?.invalidate()
-        systemWakeTimer = nil
+    func cancelUnlockTimers() {
         wakeUnlockTimer?.invalidate()
         wakeUnlockTimer = nil
         postUnlockRetryTimer?.invalidate()
         postUnlockRetryTimer = nil
+    }
+
+    func cancelAllWakeTimers() {
+        systemWakeTimer?.invalidate()
+        systemWakeTimer = nil
+        cancelUnlockTimers()
+    }
+
+    /// Complete the work that normally runs about one second after system wake.
+    ///
+    /// A fast screen unlock can arrive before `systemWakeTimer` fires. If that
+    /// unlock path merely cancels every wake-related timer, monitoring remains
+    /// suspended forever. This method is idempotent and can be called from both
+    /// the timer and the unlock notification.
+    func completeSystemWakeRecovery() {
+        let hadPendingWork = systemWakeTimer != nil || systemSleep || ble.monitoringSuspended
+        systemWakeTimer?.invalidate()
+        systemWakeTimer = nil
+        guard hadPendingWork else { return }
+
+        print("complete system wake recovery")
+        NSApp.setActivationPolicy(.accessory) // Hide Dock icon again
+        systemSleep = false
+        ble.resumeMonitoringAfterSystemWake()
+        lastWakeAt = Date().timeIntervalSince1970
+    }
+
+    func completePendingSystemWakeRecoveryIfNeeded() {
+        guard systemWakeTimer != nil || systemSleep || ble.monitoringSuspended else { return }
+        completeSystemWakeRecovery()
     }
 
     func scheduleWakeUnlock(after delay: TimeInterval, retryCount: Int = 0) {
@@ -1704,7 +1732,14 @@ struct DeviceMenuItemView {
     @objc func onDisplaySleep() {
         print("display sleep")
         displaySleep = true
-        cancelWakeRelatedTimers()
+        cancelUnlockTimers()
+        // Do not cancel systemWakeTimer here. It owns the BLE monitoring
+        // resume path and the Dock icon restoration. If display sleep happens
+        // while wake recovery is still pending, complete it immediately so the
+        // later timer cannot schedule an unlock attempt after the display is off.
+        if systemWakeTimer != nil {
+            completeSystemWakeRecovery()
+        }
     }
 
     @objc func onSystemWake() {
@@ -1712,12 +1747,8 @@ struct DeviceMenuItemView {
         systemWakeTimer?.invalidate()
         systemWakeTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: false, block: { [weak self] _ in
             guard let self = self else { return }
-            self.systemWakeTimer = nil
             print("delayed system wake job")
-            NSApp.setActivationPolicy(.accessory) // Hide Dock icon again
-            self.systemSleep = false
-            self.ble.resumeMonitoringAfterSystemWake()
-            self.lastWakeAt = Date().timeIntervalSince1970
+            self.completeSystemWakeRecovery()
             self.scheduleWakeUnlock(after: 1.0)
         })
     }
@@ -1726,7 +1757,7 @@ struct DeviceMenuItemView {
         print("system sleep")
         systemSleep = true
         lastSystemSleepStartedAt = Date().timeIntervalSince1970
-        cancelWakeRelatedTimers()
+        cancelAllWakeTimers()
         ble.suspendMonitoringForSystemSleep()
         // Set activation policy to regular, so the CBCentralManager can scan for peripherals
         // when the Bluetooth will become on again.
@@ -1735,7 +1766,11 @@ struct DeviceMenuItemView {
     }
 
     @objc func onUnlock() {
-        cancelWakeRelatedTimers()
+        cancelUnlockTimers()
+        // The system can unlock before the delayed wake-recovery timer fires.
+        // Finish that recovery now instead of cancelling it; otherwise BLE
+        // monitoring stays suspended until the app is restarted.
+        completePendingSystemWakeRecoveryIfNeeded()
         inScreensaver = false
         lastSystemSleepStartedAt = 0
         lastScreensaverStartedAt = 0
