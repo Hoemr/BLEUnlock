@@ -40,4 +40,5 @@
 "use_screensaver_to_lock" = "Kilit ekranı için ekran kuruyucu kullan";
 "wake_on_proximity" = "Uyandırma yakınlığı";
 "wake_without_unlocking" = "Kilidi açmadan uyanın";
+"trigger_watch_unlock" = "Trigger Apple Watch Unlock";
 "pair_for_mac_hint" = "Pair to stabilize random address tracking →";

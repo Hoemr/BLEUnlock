@@ -208,6 +208,11 @@ struct DeviceMenuItemView {
     let screensaverEscapeRetryDelay = 0.35
     let wakeUnlockRetryDelay = 0.5
     let wakeUnlockMaxRetries = 8
+    let watchUnlockMaxAttempts = 3
+    let watchUnlockRetryDelay = 1.0
+    let watchUnlockSessionWindow = 10.0
+    var watchUnlockAttempts = 0
+    var lastWatchUnlockTriggerAt = 0.0
 
     func menuWillOpen(_ menu: NSMenu) {
         if menu == deviceMenu {
@@ -1595,6 +1600,13 @@ struct DeviceMenuItemView {
         CGEvent(keyboardEventSource: src, virtualKey: 0x35, keyDown: false)?.post(tap: .cghidEventTap)
     }
 
+    /// Harmless input event used to nudge the lock screen so that Apple Watch
+    /// offers to unlock it. Swap the body for e.g. a Shift key (0x38) or a
+    /// tiny mouse move if Escape turns out to be a poor choice.
+    func sendWakeInputEvent() {
+        sendEscapeKey()
+    }
+
     func isScreenLocked() -> Bool {
         if let dict = CGSessionCopyCurrentDictionary() as? [String : Any] {
             if let locked = dict["CGSSessionScreenIsLocked"] as? Int {
@@ -1622,7 +1634,9 @@ struct DeviceMenuItemView {
         guard ble.unlockRSSI != ble.UNLOCK_DISABLED else { return }
         guard !systemSleep else { return }
         guard !displaySleep else { return }
-        guard !self.prefs.bool(forKey: "wakeWithoutUnlocking") else { return }
+        let wakeWithoutUnlocking = self.prefs.bool(forKey: "wakeWithoutUnlocking")
+        let triggerWatchUnlock = wakeWithoutUnlocking && self.prefs.bool(forKey: "triggerWatchUnlock")
+        guard !wakeWithoutUnlocking || triggerWatchUnlock else { return }
         let recentlyWoke = recentlyWoke()
         let conservativeWakeUnlock = conservativeWakeUnlockNeeded()
 
@@ -1639,6 +1653,11 @@ struct DeviceMenuItemView {
             if (recentlyWoke || inScreensaver) && retryCount < wakeUnlockMaxRetries {
                 scheduleWakeUnlock(after: wakeUnlockRetryDelay, retryCount: retryCount + 1)
             }
+            return
+        }
+
+        if triggerWatchUnlock {
+            triggerWatchUnlockInput(retryCount: retryCount)
             return
         }
 
@@ -1672,6 +1691,42 @@ struct DeviceMenuItemView {
                 })
             }
         })
+    }
+
+    /// "Wake without unlocking" + "Trigger Apple Watch unlock": never type the
+    /// password, only send a few harmless input events so the lock screen
+    /// notices user activity and Apple Watch can unlock the Mac.
+    func triggerWatchUnlockInput(retryCount: Int) {
+        let now = Date().timeIntervalSince1970
+        if now - lastWatchUnlockTriggerAt >= watchUnlockSessionWindow {
+            watchUnlockAttempts = 0
+        }
+        guard watchUnlockAttempts < watchUnlockMaxAttempts else { return }
+
+        if inScreensaver && recentlyWoke() {
+            print("Skipping Escape key during wake recovery")
+            if retryCount < wakeUnlockMaxRetries {
+                scheduleWakeUnlock(after: watchUnlockRetryDelay, retryCount: retryCount + 1)
+            }
+            return
+        }
+
+        // Several paths (presence, display wake, retries) can land here; keep
+        // at most one input event per retry interval.
+        let sinceLast = now - lastWatchUnlockTriggerAt
+        if sinceLast < watchUnlockRetryDelay {
+            scheduleWakeUnlock(after: watchUnlockRetryDelay - sinceLast, retryCount: retryCount)
+            return
+        }
+
+        print("Sending input event to trigger Apple Watch unlock")
+        watchUnlockAttempts += 1
+        lastWatchUnlockTriggerAt = now
+        sendWakeInputEvent()
+        if watchUnlockAttempts < watchUnlockMaxAttempts {
+            // tryUnlockScreen re-checks isScreenLocked() and stops once unlocked.
+            scheduleWakeUnlock(after: watchUnlockRetryDelay, retryCount: retryCount + 1)
+        }
     }
 
     func cancelUnlockTimers() {
@@ -2131,6 +2186,13 @@ struct DeviceMenuItemView {
         menuItem.state = wakeWithoutUnlocking ? .on : .off
     }
 
+    @objc func toggleTriggerWatchUnlock(_ menuItem: NSMenuItem) {
+        let triggerWatchUnlock = !prefs.bool(forKey: "triggerWatchUnlock")
+        prefs.set(triggerWatchUnlock, forKey: "triggerWatchUnlock")
+        menuItem.state = triggerWatchUnlock ? .on : .off
+        startPermissionRecovery(promptAccessibility: true)
+    }
+
     @objc func toggleAutomaticUpdateChecks(_ menuItem: NSMenuItem) {
         let enabled = !automaticUpdateChecksEnabled()
         prefs.set(enabled, forKey: autoCheckUpdatesKey)
@@ -2368,6 +2430,11 @@ struct DeviceMenuItemView {
             item.state = .on
         }
 
+        item = mainMenu.addItem(withTitle: t("trigger_watch_unlock"), action: #selector(toggleTriggerWatchUnlock), keyEquivalent: "")
+        if prefs.bool(forKey: "triggerWatchUnlock") {
+            item.state = .on
+        }
+
         item = mainMenu.addItem(withTitle: t("pause_now_playing"), action: #selector(togglePauseNowPlaying), keyEquivalent: "")
         if prefs.bool(forKey: "pauseItunes") {
             item.state = .on
@@ -2437,7 +2504,8 @@ struct DeviceMenuItemView {
     }
 
     func requiresAccessibilityPermission() -> Bool {
-        ble.unlockRSSI != ble.UNLOCK_DISABLED && !prefs.bool(forKey: "wakeWithoutUnlocking")
+        ble.unlockRSSI != ble.UNLOCK_DISABLED
+            && (!prefs.bool(forKey: "wakeWithoutUnlocking") || prefs.bool(forKey: "triggerWatchUnlock"))
     }
 
     func refreshPermissionRecovery() {
