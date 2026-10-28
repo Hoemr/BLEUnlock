@@ -282,6 +282,9 @@ struct DeviceMenuItemView {
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(toggleTriggerWatchUnlock) {
+            return prefs.bool(forKey: "wakeWithoutUnlocking")
+        }
         if let kind = menuItem.representedObject as? String {
             if kind == unlockLogicMenuItemKind || kind == lockLogicMenuItemKind {
                 return ble.monitoredUUIDs.count > 1
@@ -1601,8 +1604,9 @@ struct DeviceMenuItemView {
     }
 
     /// Harmless input event used to nudge the lock screen so that Apple Watch
-    /// offers to unlock it. Swap the body for e.g. a Shift key (0x38) or a
-    /// tiny mouse move if Escape turns out to be a poor choice.
+    /// offers to unlock it. Synthetic mouse moves (both a one-pixel nudge and
+    /// a larger shake) did not trigger Apple Watch unlock in testing, while a
+    /// key event does, so this sends Escape.
     func sendWakeInputEvent() {
         sendEscapeKey()
     }
@@ -1642,6 +1646,11 @@ struct DeviceMenuItemView {
 
         if inScreensaver && !recentlyWoke && retryCount == 0 {
             // Only dismiss a live screensaver outside the fragile wake window.
+            if triggerWatchUnlock {
+                // Counted and throttled like every other Watch-unlock input.
+                triggerWatchUnlockInput(retryCount: retryCount)
+                return
+            }
             sendEscapeKey()
             scheduleWakeUnlock(after: screensaverEscapeRetryDelay, retryCount: retryCount + 1)
             return
@@ -1729,6 +1738,11 @@ struct DeviceMenuItemView {
         }
     }
 
+    func resetWatchUnlockAttempts() {
+        watchUnlockAttempts = 0
+        lastWatchUnlockTriggerAt = 0
+    }
+
     func cancelUnlockTimers() {
         wakeUnlockTimer?.invalidate()
         wakeUnlockTimer = nil
@@ -1788,6 +1802,7 @@ struct DeviceMenuItemView {
         print("display sleep")
         displaySleep = true
         cancelUnlockTimers()
+        resetWatchUnlockAttempts()
         // Do not cancel systemWakeTimer here. It owns the BLE monitoring
         // resume path and the Dock icon restoration. If display sleep happens
         // while wake recovery is still pending, complete it immediately so the
@@ -1822,6 +1837,7 @@ struct DeviceMenuItemView {
 
     @objc func onUnlock() {
         cancelUnlockTimers()
+        resetWatchUnlockAttempts()
         // The system can unlock before the delayed wake-recovery timer fires.
         // Finish that recovery now instead of cancelling it; otherwise BLE
         // monitoring stays suspended until the app is restarted.
@@ -2431,6 +2447,7 @@ struct DeviceMenuItemView {
         }
 
         item = mainMenu.addItem(withTitle: t("trigger_watch_unlock"), action: #selector(toggleTriggerWatchUnlock), keyEquivalent: "")
+        item.indentationLevel = 1
         if prefs.bool(forKey: "triggerWatchUnlock") {
             item.state = .on
         }
