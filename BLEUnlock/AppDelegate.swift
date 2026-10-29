@@ -171,6 +171,7 @@ struct DeviceMenuItemView {
     var monitorMenuItem : NSMenuItem?
     var lockNowMenuItem: NSMenuItem?
     var deviceMenuItem: NSMenuItem?
+    var triggerWatchUnlockMenuItem: NSMenuItem?
     /// Serial queue for ServiceManagement XPC calls to avoid concurrent smd requests.
     let smdQueue = DispatchQueue(label: "com.github.Skyearn.BLEUnlock.smd")
     let prefs = UserDefaults.standard
@@ -214,7 +215,14 @@ struct DeviceMenuItemView {
     var watchUnlockAttempts = 0
     var lastWatchUnlockTriggerAt = 0.0
 
+    func updateTriggerWatchUnlockMenuItemVisibility() {
+        triggerWatchUnlockMenuItem?.isHidden = !prefs.bool(forKey: "wakeWithoutUnlocking")
+    }
+
     func menuWillOpen(_ menu: NSMenu) {
+        if menu == mainMenu {
+            updateTriggerWatchUnlockMenuItemVisibility()
+        }
         if menu == deviceMenu {
             deviceMenuIsOpen = false
             refreshDeviceMenuSelectionStates(removeStale: false)
@@ -282,9 +290,6 @@ struct DeviceMenuItemView {
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(toggleTriggerWatchUnlock) {
-            return prefs.bool(forKey: "wakeWithoutUnlocking")
-        }
         if let kind = menuItem.representedObject as? String {
             if kind == unlockLogicMenuItemKind || kind == lockLogicMenuItemKind {
                 return ble.monitoredUUIDs.count > 1
@@ -2200,6 +2205,7 @@ struct DeviceMenuItemView {
         let wakeWithoutUnlocking = !prefs.bool(forKey: "wakeWithoutUnlocking")
         prefs.set(wakeWithoutUnlocking, forKey: "wakeWithoutUnlocking")
         menuItem.state = wakeWithoutUnlocking ? .on : .off
+        updateTriggerWatchUnlockMenuItemVisibility()
     }
 
     @objc func toggleTriggerWatchUnlock(_ menuItem: NSMenuItem) {
@@ -2446,8 +2452,9 @@ struct DeviceMenuItemView {
             item.state = .on
         }
 
-        item = mainMenu.addItem(withTitle: t("trigger_watch_unlock"), action: #selector(toggleTriggerWatchUnlock), keyEquivalent: "")
-        item.indentationLevel = 1
+        item = mainMenu.addItem(withTitle: "↳ " + t("trigger_watch_unlock"), action: #selector(toggleTriggerWatchUnlock), keyEquivalent: "")
+        triggerWatchUnlockMenuItem = item
+        item.isHidden = !prefs.bool(forKey: "wakeWithoutUnlocking")
         if prefs.bool(forKey: "triggerWatchUnlock") {
             item.state = .on
         }
@@ -2497,6 +2504,7 @@ struct DeviceMenuItemView {
         mainMenu.addItem(withTitle: t("about"), action: #selector(showAboutBox), keyEquivalent: "")
         mainMenu.addItem(NSMenuItem.separator())
         mainMenu.addItem(withTitle: t("quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        mainMenu.delegate = self
         statusItem.menu = mainMenu
     }
 
