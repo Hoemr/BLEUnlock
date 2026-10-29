@@ -38,6 +38,7 @@
 "unlock_settings" = "Unlock Settings";
 "unlock_rssi" = "Låse opp RSSI";
 "use_screensaver_to_lock" = "Bruke skjermsparer til å låse";
+"wake_settings" = "Vekkinnstillinger";
 "wake_on_proximity" = "Vekk ved nærhet";
 "wake_without_unlocking" = "Våkne uten å låse opp";
 "trigger_watch_unlock" = "Trigger Apple Watch Unlock";

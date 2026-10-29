@@ -38,6 +38,7 @@
 "unlock_settings" = "Unlock Settings";
 "unlock_rssi" = "RSSI entsperren";
 "use_screensaver_to_lock" = "Den Bildschirmschoner verwenden zum Sperren";
+"wake_settings" = "Aufwach-Einstellungen";
 "wake_on_proximity" = "Aufwachen bei Annäherung";
 "wake_without_unlocking" = "Aufwachen ohne Entsperren";
 "trigger_watch_unlock" = "Trigger Apple Watch Unlock";

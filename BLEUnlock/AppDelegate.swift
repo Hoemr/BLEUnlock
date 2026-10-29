@@ -153,6 +153,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
     var deviceMenu = NSMenu()
     let unlockSettingsMenu = NSMenu()
     let lockSettingsMenu = NSMenu()
+    let wakeSettingsMenu = NSMenu()
     let timeoutMenu = NSMenu()
     let lockDelayMenu = NSMenu()
     let updateMenu = NSMenu()
@@ -171,6 +172,10 @@ struct DeviceMenuItemView {
     var monitorMenuItem : NSMenuItem?
     var lockNowMenuItem: NSMenuItem?
     var deviceMenuItem: NSMenuItem?
+    var wakeSettingsMenuItem: NSMenuItem?
+    var wakeOnProximityMenuItem: NSMenuItem?
+    var wakeWithoutUnlockingMenuItem: NSMenuItem?
+    var triggerWatchUnlockMenuItem: NSMenuItem?
     /// Serial queue for ServiceManagement XPC calls to avoid concurrent smd requests.
     let smdQueue = DispatchQueue(label: "com.github.Skyearn.BLEUnlock.smd")
     let prefs = UserDefaults.standard
@@ -215,7 +220,13 @@ struct DeviceMenuItemView {
     var lastWatchUnlockTriggerAt = 0.0
 
     func menuWillOpen(_ menu: NSMenu) {
-        if menu == deviceMenu {
+        if menu == mainMenu {
+            wakeSettingsMenuItem?.state = prefs.bool(forKey: "wakeOnProximity") ? .on : .off
+        } else if menu == wakeSettingsMenu {
+            wakeOnProximityMenuItem?.state = prefs.bool(forKey: "wakeOnProximity") ? .on : .off
+            wakeWithoutUnlockingMenuItem?.state = prefs.bool(forKey: "wakeWithoutUnlocking") ? .on : .off
+            triggerWatchUnlockMenuItem?.state = prefs.bool(forKey: "triggerWatchUnlock") ? .on : .off
+        } else if menu == deviceMenu {
             deviceMenuIsOpen = false
             refreshDeviceMenuSelectionStates(removeStale: false)
             deviceMenuNeedsRefresh = false
@@ -2111,6 +2122,7 @@ struct DeviceMenuItemView {
     @objc func toggleWakeOnProximity(_ menuItem: NSMenuItem) {
         let value = !prefs.bool(forKey: "wakeOnProximity")
         menuItem.state = value ? .on : .off
+        wakeSettingsMenuItem?.state = value ? .on : .off
         prefs.set(value, forKey: "wakeOnProximity")
     }
 
@@ -2436,18 +2448,26 @@ struct DeviceMenuItemView {
         timeoutMenu.addItem(withTitle: "10 " + t("minutes"), action: #selector(setTimeout), keyEquivalent: "").tag = 600
         timeoutMenu.delegate = self
 
-        item = mainMenu.addItem(withTitle: t("wake_on_proximity"), action: #selector(toggleWakeOnProximity), keyEquivalent: "")
+        let wakeSettingsItem = mainMenu.addItem(withTitle: t("wake_settings"), action: nil, keyEquivalent: "")
+        wakeSettingsItem.submenu = wakeSettingsMenu
+        wakeSettingsMenuItem = wakeSettingsItem
+        wakeSettingsItem.state = prefs.bool(forKey: "wakeOnProximity") ? .on : .off
+        wakeSettingsMenu.delegate = self
+
+        item = wakeSettingsMenu.addItem(withTitle: t("wake_on_proximity"), action: #selector(toggleWakeOnProximity), keyEquivalent: "")
+        wakeOnProximityMenuItem = item
         if prefs.bool(forKey: "wakeOnProximity") {
             item.state = .on
         }
 
-        item = mainMenu.addItem(withTitle: t("wake_without_unlocking"), action: #selector(toggleWakeWithoutUnlocking), keyEquivalent: "")
+        item = wakeSettingsMenu.addItem(withTitle: t("wake_without_unlocking"), action: #selector(toggleWakeWithoutUnlocking), keyEquivalent: "")
+        wakeWithoutUnlockingMenuItem = item
         if prefs.bool(forKey: "wakeWithoutUnlocking") {
             item.state = .on
         }
 
-        item = mainMenu.addItem(withTitle: t("trigger_watch_unlock"), action: #selector(toggleTriggerWatchUnlock), keyEquivalent: "")
-        item.indentationLevel = 1
+        item = wakeSettingsMenu.addItem(withTitle: t("trigger_watch_unlock"), action: #selector(toggleTriggerWatchUnlock), keyEquivalent: "")
+        triggerWatchUnlockMenuItem = item
         if prefs.bool(forKey: "triggerWatchUnlock") {
             item.state = .on
         }
@@ -2497,6 +2517,7 @@ struct DeviceMenuItemView {
         mainMenu.addItem(withTitle: t("about"), action: #selector(showAboutBox), keyEquivalent: "")
         mainMenu.addItem(NSMenuItem.separator())
         mainMenu.addItem(withTitle: t("quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        mainMenu.delegate = self
         statusItem.menu = mainMenu
     }
 

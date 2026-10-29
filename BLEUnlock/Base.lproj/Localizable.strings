@@ -61,6 +61,7 @@
 "updates_available" = "Updates (Available)";
 "unlock_rssi" = "Unlock RSSI";
 "use_screensaver_to_lock" = "Use Screensaver to Lock";
+"wake_settings" = "Wake Settings";
 "wake_on_proximity" = "Wake on Proximity";
 "wake_without_unlocking" = "Wake without Unlocking";
 "trigger_watch_unlock" = "Trigger Apple Watch Unlock";

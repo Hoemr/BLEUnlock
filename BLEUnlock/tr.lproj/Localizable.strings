@@ -38,6 +38,7 @@
 "unlock_settings" = "Unlock Settings";
 "unlock_rssi" = "Kilit açma RSSI";
 "use_screensaver_to_lock" = "Kilit ekranı için ekran kuruyucu kullan";
+"wake_settings" = "Uyandırma Ayarları";
 "wake_on_proximity" = "Uyandırma yakınlığı";
 "wake_without_unlocking" = "Kilidi açmadan uyanın";
 "trigger_watch_unlock" = "Trigger Apple Watch Unlock";
