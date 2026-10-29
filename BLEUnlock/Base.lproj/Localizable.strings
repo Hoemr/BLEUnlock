@@ -63,4 +63,5 @@
 "use_screensaver_to_lock" = "Use Screensaver to Lock";
 "wake_on_proximity" = "Wake on Proximity";
 "wake_without_unlocking" = "Wake without Unlocking";
+"trigger_watch_unlock" = "Trigger Apple Watch Unlock";
 "pair_for_mac_hint" = "Pair to stabilize random address tracking →";

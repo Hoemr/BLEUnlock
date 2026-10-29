@@ -63,4 +63,5 @@
 "use_screensaver_to_lock" = "用屏保来锁定它";
 "wake_on_proximity" = "靠近唤醒";
 "wake_without_unlocking" = "唤醒时不需解锁";
+"trigger_watch_unlock" = "触发 Apple Watch 解锁";
 "pair_for_mac_hint" = "配对以稳定追踪随机地址 →";
