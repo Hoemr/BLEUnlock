@@ -172,7 +172,6 @@ struct DeviceMenuItemView {
     var monitorMenuItem : NSMenuItem?
     var lockNowMenuItem: NSMenuItem?
     var deviceMenuItem: NSMenuItem?
-    var wakeSettingsMenuItem: NSMenuItem?
     var wakeOnProximityMenuItem: NSMenuItem?
     var wakeWithoutUnlockingMenuItem: NSMenuItem?
     var triggerWatchUnlockMenuItem: NSMenuItem?
@@ -221,9 +220,8 @@ struct DeviceMenuItemView {
 
     func menuWillOpen(_ menu: NSMenu) {
         if menu == mainMenu {
-            wakeSettingsMenuItem?.state = prefs.bool(forKey: "wakeOnProximity") ? .on : .off
-        } else if menu == wakeSettingsMenu {
             wakeOnProximityMenuItem?.state = prefs.bool(forKey: "wakeOnProximity") ? .on : .off
+        } else if menu == wakeSettingsMenu {
             wakeWithoutUnlockingMenuItem?.state = prefs.bool(forKey: "wakeWithoutUnlocking") ? .on : .off
             triggerWatchUnlockMenuItem?.state = prefs.bool(forKey: "triggerWatchUnlock") ? .on : .off
         } else if menu == deviceMenu {
@@ -2122,7 +2120,6 @@ struct DeviceMenuItemView {
     @objc func toggleWakeOnProximity(_ menuItem: NSMenuItem) {
         let value = !prefs.bool(forKey: "wakeOnProximity")
         menuItem.state = value ? .on : .off
-        wakeSettingsMenuItem?.state = value ? .on : .off
         prefs.set(value, forKey: "wakeOnProximity")
     }
 
@@ -2448,17 +2445,16 @@ struct DeviceMenuItemView {
         timeoutMenu.addItem(withTitle: "10 " + t("minutes"), action: #selector(setTimeout), keyEquivalent: "").tag = 600
         timeoutMenu.delegate = self
 
-        let wakeSettingsItem = mainMenu.addItem(withTitle: t("wake_settings"), action: nil, keyEquivalent: "")
-        wakeSettingsItem.submenu = wakeSettingsMenu
-        wakeSettingsMenuItem = wakeSettingsItem
-        wakeSettingsItem.state = prefs.bool(forKey: "wakeOnProximity") ? .on : .off
-        wakeSettingsMenu.delegate = self
-
-        item = wakeSettingsMenu.addItem(withTitle: t("wake_on_proximity"), action: #selector(toggleWakeOnProximity), keyEquivalent: "")
+        item = mainMenu.addItem(withTitle: t("wake_on_proximity"), action: #selector(toggleWakeOnProximity), keyEquivalent: "")
         wakeOnProximityMenuItem = item
         if prefs.bool(forKey: "wakeOnProximity") {
             item.state = .on
         }
+
+        let wakeSettingsItem = mainMenu.addItem(withTitle: t("wake_settings") + "...", action: nil, keyEquivalent: "")
+        wakeSettingsItem.submenu = wakeSettingsMenu
+        wakeSettingsItem.indentationLevel = 1
+        wakeSettingsMenu.delegate = self
 
         item = wakeSettingsMenu.addItem(withTitle: t("wake_without_unlocking"), action: #selector(toggleWakeWithoutUnlocking), keyEquivalent: "")
         wakeWithoutUnlockingMenuItem = item
