@@ -2451,9 +2451,8 @@ struct DeviceMenuItemView {
             item.state = .on
         }
 
-        let wakeSettingsItem = mainMenu.addItem(withTitle: t("wake_settings") + "...", action: nil, keyEquivalent: "")
+        let wakeSettingsItem = mainMenu.addItem(withTitle: t("wake_settings"), action: nil, keyEquivalent: "")
         wakeSettingsItem.submenu = wakeSettingsMenu
-        wakeSettingsItem.indentationLevel = 1
         wakeSettingsMenu.delegate = self
 
         item = wakeSettingsMenu.addItem(withTitle: t("wake_without_unlocking"), action: #selector(toggleWakeWithoutUnlocking), keyEquivalent: "")
